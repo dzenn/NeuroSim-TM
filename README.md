@@ -41,6 +41,7 @@ Finally, the auxiliary files are as follows: `active_connections.txt`, `M.txt`, 
 To interactively control the network activity during the simulation, Gnuplot scripts plot_activity.plt and, for small networks (see Figure 1 in the main article), plot_raster.plt have been used. These scripts visualize the current content of the output files activity.txt and raster.txt, respectively, which are updated regularly during the simulation.
 
 [1]: A.V. Paraskevov, D.K. Zendrikov, A spatially resolved network spike in model neuronal cultures reveals nucleation centers, circular traveling waves and drifting spiral waves, Phys. Biol. 14 (2017) 026003.
+
 [2]: M. Tsodyks, A. Uziel, H. Markram, Synchrony generation in recurrent networks with frequency-dependent synapses, J. Neurosci. 20 (2000) RC50.
 
 
