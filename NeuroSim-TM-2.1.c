@@ -422,7 +422,7 @@ int main(int argc, char *argv[]){
     //declaration of all needed variables
 
     struct neuron **neurons = malloc(MAXIMUM_NUMBER_OF_NEURONS*sizeof(struct neuron*));
-    int i,j, CONN_PER_NEURON_COUNT, layer_type, COORDINATES_LOAD_TYPE=0, SYNAPTIC_DATA_LOAD_TYPE=0, STIMULATION_DATA_LOAD_TYPE=0, W_OUTPUT_COUNTER = 1, TOPOLOGY_LOAD_TYPE = 0, N_SP, N_ACTIVE_CONN, N_con=0, BG_CURRENT_NOISE_MODE=0;
+	int i,j, CONN_PER_NEURON_COUNT, layer_type=1, COORDINATES_LOAD_TYPE=0, SYNAPTIC_DATA_LOAD_TYPE=0, STIMULATION_DATA_LOAD_TYPE=0, W_OUTPUT_COUNTER = 1, TOPOLOGY_LOAD_TYPE = 0, N_SP, N_ACTIVE_CONN, N_con=0, BG_CURRENT_NOISE_MODE=0;
     int burst_flag, burst_counter, eof_flag, eof_flag2, INH_COUNT, EXC_COUNT, N_COUNT, FORCE_BINOMIAL_TOPOLOGY=0, N_PM = 0;
     struct synapse *tmp_synapse, *tmp_synapse2;
     struct inc_synapse *tmp_input_synapse, *tmp_input_synapse2;
@@ -481,14 +481,14 @@ int main(int argc, char *argv[]){
 
     //****************Reading input data************************
     // setting default values in case we don't find them in a file
-    int N = 500;        //number of neurons
-    double dt = 0.01;   //simulation time step
-    double INH_NEURONS_FRACTION = 0.2;  //fraction of inhibitory neurons among N
+    int N = 50000;        //number of neurons
+    double dt = 0.1;   //simulation time step
+    double INH_NEURONS_FRACTION = 0.0;  //fraction of inhibitory neurons among N
 
     int NEURON_MODEL = 1; //membrane potential model of a neuron. 1 for Leaky-integrate-and-fire(LIF), 0 for Perfect Integrate-and-Fire(PIF)
 
     //LIF model default parameters
-    double TAU_M = 30;  //ms, membrane potential V relaxation constant
+    double TAU_M = 20;  //ms, membrane potential V relaxation constant
     double R_IN = 1;   //GOhm, membrane resistance
     double V_REST = 0; //mV, resting potential
     double V_TH = 15;   //mV, threshold potential
@@ -501,7 +501,7 @@ int main(int argc, char *argv[]){
 
 
     //T_M model default parameters (mean values of synaptic parameters)
-    double Avg_A[2][2] = {{-72, -72}, {54, 38}}; //pA
+    double Avg_A[2][2] = {{-72, -72}, {54, 54}}; //pA
     double Avg_U[2][2] = {{0.04, 0.04}, {0.5, 0.5}};
     double Avg_tau_rec[2][2] = {{100, 100}, {800, 800}}; //ms
     double Avg_tau_facil[2][2] = {{1000, 1000}, {0, 0}}; //ms
@@ -513,24 +513,24 @@ int main(int argc, char *argv[]){
 
     //stimulation default parameters for background currents
     double I_BG_MEAN = 7.7; //pA
-    double I_BG_SD = 4.9; //pA
+    double I_BG_SD = 4.0; //pA
     double I_BG_MIN = 0; //pA
     double I_BG_MAX = 20; //pA
 
-    double I_BG_1 = 22; //pA
-    double I_BG_2 = 9; //pA
-    double FRACTION_OF_NEURONS_WITH_I_BG_1 = 0.25;
+    double I_BG_1 = 2; //pA
+    double I_BG_2 = 37; //pA
+    double FRACTION_OF_NEURONS_WITH_I_BG_1 = 0.75;
 
     double I_BG_NOISE_SD = 0;
 
     //default parameters for the case of stochastic stimulation
-    double P_SP_MEAN = 0.00002;
-    double P_SP_SD = 0.000005;
-    double P_SP_MIN = 0;
+    double P_SP_MEAN = 0.0005;
+    double P_SP_SD = 0.0;
+    double P_SP_MIN = 0.0;
     double P_SP_MAX = 0.001;
 
-    double P_SP_1 = 1.5*P_SP_MEAN;
-    double P_SP_2 = 0.6*P_SP_MEAN;
+    double P_SP_1 = 0.005;
+    double P_SP_2 = 0.00001;
     double FRACTION_OF_NEURONS_WITH_P_SP_1 = 0.25;
 
     //STDP parameters
@@ -547,7 +547,7 @@ int main(int argc, char *argv[]){
     double lambda = 0.01; //characteristic length of a connection within an exponential distribution in spatially-dependent topology
     double tau_delay = 0.2; //base axonal delay
     SPIKE_SPEED = 0.2; //speed of spike propagating along the axon. All connections are considered straight lines.
-    double max_conn_length = 1.4142; //maximum length of a connection in spatially-dependent topology
+    double max_conn_length = 1.415; //maximum length of a connection in spatially-dependent topology
 
     double P_CON = 0.1; //probability of connecting two neurons in case of BINOMIAL topology
 
@@ -567,8 +567,8 @@ int main(int argc, char *argv[]){
 
     //simulation parameters
     double AVG_TIME = 2; //ms, activity averaging time
-    int SIM_TIME = 3000; //ms, simulation duration
-    burst_threshold = 0.1; //activity level for detecting a burst
+    int SIM_TIME = 10000; //ms, simulation duration
+    burst_threshold = 0.2; //activity level for detecting a burst
 
 
     //a complete list of parameters' names to read from input file
