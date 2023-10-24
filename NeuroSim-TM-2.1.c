@@ -1556,7 +1556,7 @@ int main(int argc, char *argv[]){
 
                         old_u = tmp_input_synapse->syn_pointer->u;
                         if (neurons[tmp_input_synapse->syn_pointer->pre_id]->type == TYPE_EXCITATORY)
-                            tmp_input_synapse->syn_pointer->u = tmp_input_synapse->syn_pointer->w;
+                            tmp_input_synapse->syn_pointer->u = tmp_input_synapse->syn_pointer->U;
                         else tmp_input_synapse->syn_pointer->u += tmp_input_synapse->syn_pointer->U*(1 - old_u);
                         tmp_input_synapse->syn_pointer->y += old_u*tmp_input_synapse->syn_pointer->x;
                         tmp_input_synapse->syn_pointer->x -= old_u*tmp_input_synapse->syn_pointer->x;
