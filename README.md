@@ -47,9 +47,9 @@ To interactively control the network activity during the simulation, Gnuplot scr
 
 ### 2. Compiling the simulator
 
-The software can be standardly compiled with the GCC compiler in both Windows and Linux operating systems using console command:
+The software can be standardly compiled with the GCC compiler in both Windows and Linux operating systems using the console command (the option `-lm` might be needed for Linux systems):
 ```
-gcc NeuroSim-TM-2.1.c -o NeuroSim-TM-2.1
+gcc NeuroSim-TM.c -o NeuroSim-TM
 ```
 ### 3. Starting the simulation
 
