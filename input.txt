@@ -1,0 +1,178 @@
+Important: Input format doesn't intend space between equality sign and a name of a parameter.
+Parameters may appear in any order.
+If some parameters are not written in this file they are chosen by default.
+
+*****Use saved data (0 for NO, 1 for YES)*****
+
+use_saved_topology=0
+use_saved_stimulation_data=0
+use_saved_synaptic_parameters=0
+use_saved_coordinates=0
+
+*****General*****
+
+Number of neurons:
+N=50000
+Inh_neurons_fraction=0.2
+
+*****Simulation parameters*****
+
+dt=0.1 ms
+AVG_TIME=2 ms
+SIM_TIME=10000 ms
+burst_threshold=0.2 - threshold of activity when a PB is registered
+
+*****Neuron model parameters*****
+
+neuron_model=1 (0 - PERFECT INTEGRATE-AND-FIRE (PIF),
+		1 - LEAKY INTEGRATE-AND-FIRE (LIF))
+
+V_REST=0 mV
+V_RESET=13.5 mV
+V_TH=15 mV
+
+TAU_REF_EXC=3 ms, refractory period of excitatory neurons
+TAU_REF_INH=2 ms, refractory period of inhibitory neurons
+
+TAU_M=20 ms (Used for LIF)
+R_IN=1 Gohm (Used for LIF)
+C_M=20 pF (Used for PIF)
+
+limited_spiking_resource_mode=0 (0 - disabled,
+				 1 - enabled for NPM neurons only,
+				 2 - enabled for both PM and NPM neurons)
+max_spikes_per_neuron=50
+
+*****Synaptic parameters*****
+
+x_init=0.98
+y_init=0.01
+z_init=0.01
+
+Aee=38 pA
+Aei=54 pA
+Aie=-72 pA
+Aii=-72 pA
+
+Uee=0.5
+Uei=0.5
+Uie=0.04
+Uii=0.04
+
+tau_rec_ee=800 ms
+tau_rec_ei=800 ms
+tau_rec_ie=100 ms
+tau_rec_ii=100 ms
+
+tau_facil_ie=1000 ms
+tau_facil_ii=1000 ms
+
+tau_I=3 ms
+
+limited_synaptic_transmission_resource_mode=0 (0 - disabled,
+				  	       1 - enabled for connections with presynaptic NPM neurons only,
+				  	       2 - enabled for all synapses)
+max_pulses_per_synapse=10
+syn_pulse_detection_threshold=0.1 pA
+
+*****Topology parameters*****
+
+spatial_layer_type=1   (0 for BINOMIAL,
+			1 for UNIFORM,
+			2 for SQUARE LATTICE,
+			3 for STRIPED,
+			4 for BELL,
+			5 for RAMP,
+			6 for DOUBLE RAMP,
+			7 for BARBELL)
+
+force_binomial_topology=0
+
+P_con=0.1 (used for BINOMIAL layer type)
+
+Parameters for spatially-dependent topology:
+
+B_exc=1
+B_inh=1
+lambda_exc=0.01 L
+lambda_inh=0.01 L
+max_conn_length=1.5 L
+spike_speed=0.2 L/ms
+tau_delay=0.2 ms
+
+*****Stimulation parameters*****
+
+Stimulation_type=1 (1 for gaussian background current distribution,
+		    2 for two values of background current,
+		    3 for gaussian spontaneous spiking probability distribution,
+		    4 for two values of spontaneous spiking probability)
+
+I_bg_mean_exc=7.7 pA
+I_bg_sd_exc=4.0 pA
+I_bg_min_exc=0 pA
+I_bg_max_exc=20 pA
+
+I_bg_mean_inh=7.7 pA
+I_bg_sd_inh=4.0 pA
+I_bg_min_inh=0 pA
+I_bg_max_inh=20 pA
+
+I_bg_multiplier=1
+
+I_bg_1=2 pA 				(used in case Stimulation_type = 2)
+I_bg_2=37 pA 				(used in case Stimulation_type = 2)
+Fraction_of_neurons_with_I_bg_1=0.75 	(used in case Stimulation_type = 2)
+
+P_sp_mean=0.0005
+P_sp_sd=0
+P_sp_min=0
+P_sp_max=0.001
+
+P_sp_1=0.005 				(used in case Stimulation_type = 4)
+P_sp_2=0.00001 				(used in case Stimulation_type = 4)
+Fraction_of_neurons_with_p_sp_1=1 	(used in case Stimulation_type = 4)
+
+*****Additional mechanisms*****
+
+>>>Background current noise<<<
+
+I_bg_noise_mode=0 (0 for OFF
+		   1 for ON)
+I_bg_noise_sd=3.5 pA
+
+>>>Stimulation disabling<<<
+
+stim_disable_protocol=0 (0 for no turning stimulation off,
+			 1 for turning stimulation off when overcoming the given activity threshold after <pb_number-1> PBs
+		       	 2 for turning stimulation off at a certain time
+			 3 for applying filters 1 and 2 together)
+pb_number=1
+activity_threshold=0.08
+stim_off_time=2169 (ms - moment to turn off the stimulation)
+
+inh_off_time=0 (ms - moment in simulation to force inhibitory neurons' membrane potential maintain V_REST; set to -1 to disable the feature)
+
+>>>STDP<<<
+
+STDP parameters:
+
+STDP_status=0  (0 for OFF,
+		1 for MULTIPLICATIVE,
+		2 for ADDITIVE)
+
+W_OUTPUT_PERIOD=1000 (period of exporting synaptic weights if STDP is ON)
+
+A_plus=0.01
+A_minus=0.01
+w_initial=0.5
+tau_plus_corr=20
+tau_minus_corr=20
+
+>>>Homeostasis<<<
+
+Homeostasis parameters:
+
+Homeostasis_status=0 (0 for OFF
+		      1 for ON)
+b=0 (by default b = 1/N, unless it is set here)
+M_max=1
