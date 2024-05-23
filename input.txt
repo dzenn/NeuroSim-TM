@@ -92,10 +92,7 @@ P_con=0.1 (used for BINOMIAL layer type)
 
 Parameters for spatially-dependent topology:
 
-B_exc=1
-B_inh=1
-lambda_exc=0.01 L
-lambda_inh=0.01 L
+lambda=0.01 L
 max_conn_length=1.5 L
 spike_speed=0.2 L/ms
 tau_delay=0.2 ms
@@ -107,15 +104,10 @@ Stimulation_type=1 (1 for gaussian background current distribution,
 		    3 for gaussian spontaneous spiking probability distribution,
 		    4 for two values of spontaneous spiking probability)
 
-I_bg_mean_exc=7.7 pA
-I_bg_sd_exc=4.0 pA
-I_bg_min_exc=0 pA
-I_bg_max_exc=20 pA
-
-I_bg_mean_inh=7.7 pA
-I_bg_sd_inh=4.0 pA
-I_bg_min_inh=0 pA
-I_bg_max_inh=20 pA
+I_bg_mean=7.7 pA
+I_bg_sd=4.0 pA
+I_bg_min=0 pA
+I_bg_max=20 pA
 
 I_bg_multiplier=1
 
