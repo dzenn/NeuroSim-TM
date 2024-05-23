@@ -5,7 +5,7 @@ Simulator of spiking dynamics in networks of Leaky Integrate-and-fire (LIF) neur
 
 ### 1. Introductory Overview
 
-The custom-made software `NeuroSim-TM-2.1` written in the C programming language is used for simulation of spiking dynamics of generative networks composed of Leaky Integrate-and-Fire (LIF) point-like neurons with synaptic plasticity. The software has been specifically designed for numerical studies of spatiotemporal properties of population spikes (or population bursts) [1].
+The custom-made software `NeuroSim-TM-2.2` written in the C programming language is used for simulation of spiking dynamics of generative networks composed of Leaky Integrate-and-Fire (LIF) point-like neurons with synaptic plasticity. The software has been specifically designed for numerical studies of spatiotemporal properties of population spikes (or population bursts) [1].
 
 Synaptic plasticity may be only the short-term one, according to the Tsodyks-Uziel-Markram (TUM) model [2], or it can be complemented by ‘long-term’ Spike-Timing-Dependent Plasticity (STDP). Ordinary differential equations for the dynamics of neuron potentials and synaptic variables are solved using the standard Euler method. The default initial conditions are that all neurons have the same ’resting’ value of the membrane potential, and all synapses have the same initial values of synaptic variables.
 
