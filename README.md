@@ -1,17 +1,17 @@
 # NeuroSim-TM
 Simulator of spiking dynamics in networks of Leaky Integrate-and-fire (LIF) neurons with Tsodyks-Uziel-Markram short-term synaptic plasticity
 
-## A Brief User Guide for NeuroSim-TM-2.1 Simulator
+## A Brief User Guide for NeuroSim-TM Simulator
 
 ### 1. Introductory Overview
 
-The custom-made software `NeuroSim-TM-2.2` written in the C programming language is used for simulation of spiking dynamics of generative networks composed of Leaky Integrate-and-Fire (LIF) point-like neurons with synaptic plasticity. The software has been specifically designed for numerical studies of spatiotemporal properties of population spikes (or population bursts) [1].
+The custom-made software `NeuroSim-TM` written in the C programming language is used for simulation of spiking dynamics of generative networks composed of Leaky Integrate-and-Fire (LIF) point-like neurons with synaptic plasticity. The software has been specifically designed for numerical studies of spatiotemporal properties of population spikes (or population bursts) [1].
 
 Synaptic plasticity may be only the short-term one, according to the Tsodyks-Uziel-Markram (TUM) model [2], or it can be complemented by ‘long-term’ Spike-Timing-Dependent Plasticity (STDP). Ordinary differential equations for the dynamics of neuron potentials and synaptic variables are solved using the standard Euler method. The default initial conditions are that all neurons have the same ’resting’ value of the membrane potential, and all synapses have the same initial values of synaptic variables.
 
 Both metric (i.e. spatially dependent) and metric-free network connectomes can be generated. For the metric networks, the software allows various spatial arrangements of neurons. In this case, the probability of forming a unilateral connection between every two neurons decreases exponentially with increasing their relative distance. The maximum size of the generated network is limited by the amount of operative memory available to a single-thread program, as multi-thread parallelization is not yet implemented.
 
-After compilation with a standard C compiler (e.g., GCC), the executable file for `NeuroSim-TM-2.1` can be used for all available variants of simulation without recompiling. All parameters required for choosing and performing simulations are set through the single input file input.txt, which should be placed in the same folder as the executable file.
+After compilation with a standard C compiler (e.g., GCC), the executable file for `NeuroSim-TM` can be used for all available variants of simulation without recompiling. All parameters required for choosing and performing simulations are set through the single input file input.txt, which should be placed in the same folder as the executable file.
 
 The software also supports several protocols for specific numerical experiments on influence of various forms of neuron stimulation on network activity, as well as a simple model for global homeostasis. These and other capabilities unused in the reported study will be omitted here.
 
@@ -55,7 +55,7 @@ gcc NeuroSim-TM.c -o NeuroSim-TM
 
 A copy of the executable should be placed in the directory of a particular run. There it will search for the input files with specific names and generate its output.
 The input settings are specified in the file `input.txt`. The syntax of the input file is `PARAMETER_NAME=VALUE` at the beginning of a new line without spaces. All other symbols are discarded as comments. The parameters can be specified in any order. Please find the list of parameters in Table 1.
-If some of the parameters are not found in `input.txt`, the default values from `NeuroSim-TM-2.1.c` (please see lines 483-571 there) are used. Before the simulation beginning the user is prompted to check if the values imported from the input file are correct and to type ‘Y’ (yes) for confirmation.
+If some of the parameters are not found in `input.txt`, the default values hardcoded in `NeuroSim-TM.c` are used (lines 486-581). Before the simulation beginning the user is prompted to check if the values imported from the input file are correct and to type ‘Y’ (yes) for confirmation.
 
 After that, the static parameters of the neuronal network are generated (or loaded from the previously saved files; see details below) and written in the output files:
 -	`coordinates.txt` with coordinates X and Y of one neuron per row, in units of L,
