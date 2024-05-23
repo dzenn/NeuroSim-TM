@@ -16,7 +16,7 @@
  * Each structure contains parameters of a neuron,
  * a list of output synapses and a list of pointers on input synapses.
  *
- * Connecntions between neurons are created randomly with probability P_CON for BINOMIAL topology,
+ * Connections between neurons are created randomly with probability P_CON for BINOMIAL topology,
  * or with exponentially decreasing probability in case of spatially-dependent topology
  *
  * Structure of the program:
@@ -31,7 +31,7 @@
  * */
 
 
-#define PARAMETER_N 79   //number of parameters expected to be in the input file
+#define PARAMETER_N 91   //number of parameters expected to be in the input file
 #define BUFFER_SIZE 200
 #define TYPE_EXCITATORY 1
 #define TYPE_INHIBITORY 0
@@ -92,9 +92,14 @@ struct synapse{
     double A; //synaptic current magnitude
     double U; //supplementary synaptic magnitude
     double u; //use of synaptic resources
-    double x; //recovered
-    double y; //active           states of synaptic resources
-    double z; //inactive
+    double x; //recovered fraction of synaptic resources
+    double y; //active fraction of synaptic resources
+    double z; //inactive fraction of synaptic resources
+
+    double syn_pulse_detection_threshold;
+    int syn_transmission_resource;
+    int syn_pulse_flag;
+    int syn_pulse_count;
 
     double tau_I; //decay constant
     double tau_rec; //syn depression recovery time
@@ -124,7 +129,8 @@ struct neuron{
     double x; //coordinates of a neuron, set to (0,0) for BINOMIAL topology, otherwise described by LAYER_TYPE
     double y;
 
-    int num_of_outcoming_connections; //amount of outcoming connections of a neuron, stored to be easily accessed without re-calculating
+    int num_of_outcoming_connections; //amount of outgoing connections of a neuron, stored to be easily accessed without re-calculating
+    int num_of_incoming_connections; //amount of incoming connections of a neuron
 
     int num_spikes;
 
@@ -132,7 +138,7 @@ struct neuron{
     double V_rest; //mV, resting value of V
     double V_reset; //mV, resetting value of V, V is set to this value after emitting a spike
     double I_b; //pA, background current value
-    double I_b_init; //pA, initital value of background current, as the I_b itself can be decreased by the homeostasis mechanism, if the latter is turned on
+    double I_b_init; //pA, initial value of background current, as the I_b itself can be decreased by the homeostasis mechanism, if the latter is turned on
     double p_sp; //probability of emitting a spike on each step of simulation
 
     double ref_time_left; //0 until neuron emits spike, then 3 or 2 ms of excitatory and inhibitory neurons respectively
@@ -157,7 +163,7 @@ struct parameter {
 void readfile (FILE *file, struct parameter parameter_array[PARAMETER_N]);
 
 
-//****Function for cutting off unneccessary digits after a point to make sure program uses same values that is written to output files
+//****Function for cutting off unnecessary digits after a point to make sure program uses same values that is written to output files
 double my_round (double input){
 
     char str[100];
@@ -237,14 +243,13 @@ void stepSynapse(struct synapse *syn, double dt){
     old_z = syn->z;
     old_u = syn->u;
 
-
     syn->x += dt*old_z/syn->tau_rec;
     syn->y -= dt*old_y/syn->tau_I;
     syn->z += dt*(old_y/syn->tau_I - old_z/syn->tau_rec);
     if (syn->tau_facil == 0) syn->u = syn->U;
     else syn->u -= dt*old_u/syn->tau_facil;
 
-    syn->I = 2*syn->A*syn->w*syn->y;
+    syn->I = 2*syn->w*syn->A*syn->y;
 
     if (syn->x >= 1) syn->x = 0.9999999; if (syn->x <= 0) syn->x = 0.0000001;//correction
     if (syn->y >= 1) syn->y = 0.9999999; if (syn->y <= 0) syn->y = 0.0000001;
@@ -406,23 +411,18 @@ void setCoordinates(struct neuron **neurons, int layer_type, int N){
         N_rest--;
     }
 
-    //printf("ERROR: Coordinates were not set for some reason! (neuron %d)\n",i);
-    //getchar();
-    //exit(1);
     free(tmp_list);
-
 
 }
 
-
-//*************Main body***********************************************************************
+    //**************************Main body**************************//
 
 int main(int argc, char *argv[]){
 
     //declaration of all needed variables
 
     struct neuron **neurons = malloc(MAXIMUM_NUMBER_OF_NEURONS*sizeof(struct neuron*));
-	int i,j, CONN_PER_NEURON_COUNT, layer_type=1, COORDINATES_LOAD_TYPE=0, SYNAPTIC_DATA_LOAD_TYPE=0, STIMULATION_DATA_LOAD_TYPE=0, W_OUTPUT_COUNTER = 1, TOPOLOGY_LOAD_TYPE = 0, N_SP, N_ACTIVE_CONN, N_con=0, BG_CURRENT_NOISE_MODE=0;
+    int i,j, CONN_PER_NEURON_COUNT, layer_type=1, COORDINATES_LOAD_TYPE=0, SYNAPTIC_DATA_LOAD_TYPE=0, STIMULATION_DATA_LOAD_TYPE=0, W_OUTPUT_COUNTER = 1, TOPOLOGY_LOAD_TYPE = 0, N_SP, N_ACTIVE_CONN, N_con=0, BG_CURRENT_NOISE_MODE=0;
     int burst_flag, burst_counter, eof_flag, eof_flag2, INH_COUNT, EXC_COUNT, N_COUNT, FORCE_BINOMIAL_TOPOLOGY=0, N_PM = 0;
     struct synapse *tmp_synapse, *tmp_synapse2;
     struct inc_synapse *tmp_input_synapse, *tmp_input_synapse2;
@@ -431,12 +431,10 @@ int main(int argc, char *argv[]){
     double tmp_I, tmp_prob, prob;
     double averaging_timer, burst_detection_timer, synapse_resource_timer, w_output_timer = 1000;
     double old_u, avg_activity, activity;
-    int max_spikes = -1, pre_syn_type, post_syn_type, pre_num, post_num, pre_num2, post_num2; //These temporary variables are used to read parameters from files
+    int pre_syn_type, post_syn_type, pre_num, post_num, pre_num2, post_num2; //These temporary variables are used to read parameters from files
     double tmp_A, tmp_tau_I, tmp_tau_rec, tmp_tau_facil, tmp_U, SPIKE_SPEED, burst_threshold;              //parameters from files
     double avg_x, avg_y, avg_z, avg_u, x_init = 0.98, y_init = 0.01, z_init = 0.01, spike_resource;
     char c, tmp_str[100], tmp_str_2[100];
-
-
 
     //declaration of input\output files
 
@@ -462,13 +460,17 @@ int main(int argc, char *argv[]){
     FILE *output_connections;
     FILE *output_connections_distribution;
     FILE *output_coordinates;
+    FILE *output_spikes_per_neuron_pm;
+    FILE *output_spikes_per_neuron_npm;
 
     FILE *output_info;
 
     FILE *output_IBI;
     FILE *output_burst_times;
     FILE *output_lifetimes;
+    FILE *output_syn_lifetimes;
     FILE *output_spike_resource;
+    FILE *output_V_rest_PIF;
 
     FILE *input = fopen("input.txt", "r");
     FILE *input_connections = NULL;
@@ -483,9 +485,16 @@ int main(int argc, char *argv[]){
     // setting default values in case we don't find them in a file
     int N = 50000;        //number of neurons
     double dt = 0.1;   //simulation time step
-    double INH_NEURONS_FRACTION = 0.0;  //fraction of inhibitory neurons among N
+    double INH_NEURONS_FRACTION = 0.2;  //fraction of inhibitory neurons among N
 
     int NEURON_MODEL = 1; //membrane potential model of a neuron. 1 for Leaky-integrate-and-fire(LIF), 0 for Perfect Integrate-and-Fire(PIF)
+
+    int max_spikes = -1;
+    int spiking_resource_mode = 0; //1 - for NPM neurons only, 2 - for both PM and NPM neurons
+
+    int max_pulses_per_synapse = 0;
+    int syn_transmission_resource_mode = 0; //1 - for outgoing connections of NPM neurons only, 2 - for all connections
+    double syn_pulse_detection_threshold = 1; // pA
 
     //LIF model default parameters
     double TAU_M = 20;  //ms, membrane potential V relaxation constant
@@ -499,7 +508,6 @@ int main(int argc, char *argv[]){
     //PIF model addition
     double C_M = 20; //pF, membrane capacitance
 
-
     //T_M model default parameters (mean values of synaptic parameters)
     double Avg_A[2][2] = {{-72, -72}, {54, 54}}; //pA
     double Avg_U[2][2] = {{0.04, 0.04}, {0.5, 0.5}};
@@ -512,10 +520,12 @@ int main(int argc, char *argv[]){
     int STIMULATION_TYPE = STIM_TYPE_I_BG_GAUSSIAN; //stimulation type, 1 for background currents, 2 for spontaneous spiking
 
     //stimulation default parameters for background currents
-    double I_BG_MEAN = 7.7; //pA
-    double I_BG_SD = 4.0; //pA
-    double I_BG_MIN = 0; //pA
-    double I_BG_MAX = 20; //pA
+    double I_BG_MEAN[2] = {7.7, 7.7}; //pA
+    double I_BG_SD[2] = {4.0, 4.0}; //pA
+    double I_BG_MIN[2] = {0, 0}; //pA
+    double I_BG_MAX[2] = {20, 20}; //pA
+
+    double I_BG_MULTIPLIER = 1; //pA
 
     double I_BG_1 = 2; //pA
     double I_BG_2 = 37; //pA
@@ -525,7 +535,7 @@ int main(int argc, char *argv[]){
 
     //default parameters for the case of stochastic stimulation
     double P_SP_MEAN = 0.0005;
-    double P_SP_SD = 0.0;
+    double P_SP_SD = 0.00;
     double P_SP_MIN = 0.0;
     double P_SP_MAX = 0.001;
 
@@ -542,9 +552,9 @@ int main(int argc, char *argv[]){
     double tau_minus_corr = 20;
     double W_OUTPUT_PERIOD = 500;
 
-
     //topology parameters
-    double lambda = 0.01; //characteristic length of a connection within an exponential distribution in spatially-dependent topology
+    double B[2] = {1, 1};
+    double lambda[2] = {0.01, 0.01}; //characteristic length of a connection within an exponential distribution in spatially-dependent topology
     double tau_delay = 0.2; //base axonal delay
     SPIKE_SPEED = 0.2; //speed of spike propagating along the axon. All connections are considered straight lines.
     double max_conn_length = 1.415; //maximum length of a connection in spatially-dependent topology
@@ -568,18 +578,20 @@ int main(int argc, char *argv[]){
     //simulation parameters
     double AVG_TIME = 2; //ms, activity averaging time
     int SIM_TIME = 10000; //ms, simulation duration
-    burst_threshold = 0.2; //activity level for detecting a burst
+    burst_threshold = 0.1; //activity level for detecting a burst
 
-
-    //a complete list of parameters' names to read from input file
+   //a complete list of parameters' names to read from input file
     struct parameter value_array[PARAMETER_N] = {
         {"N", &N},
         {"dt", &dt},
 
         {"Inh_neurons_fraction", &INH_NEURONS_FRACTION},
 
-        {"lambda", &lambda},
-        {"spike_speed", &SPIKE_SPEED},
+        {"lambda_exc", &lambda[1]},
+        {"lambda_inh", &lambda[0]},
+        {"B_exc", &B[1]},
+        {"B_inh", &B[0]},
+        {"spikespeed", &SPIKE_SPEED},
         {"tau_delay", &tau_delay},
         {"max_conn_length", &max_conn_length},
 
@@ -622,14 +634,20 @@ int main(int argc, char *argv[]){
 
         {"Stimulation_type", &STIMULATION_TYPE},
 
-        {"I_bg_mean", &I_BG_MEAN},
-        {"I_bg_sd", &I_BG_SD},
-        {"I_bg_min", &I_BG_MIN},
-        {"I_bg_max", &I_BG_MAX},
+        {"I_bg_mean_exc", &I_BG_MEAN[1]},
+        {"I_bg_sd_exc", &I_BG_SD[1]},
+        {"I_bg_min_exc", &I_BG_MIN[1]},
+        {"I_bg_max_exc", &I_BG_MAX[1]},
+
+        {"I_bg_mean_inh", &I_BG_MEAN[0]},
+        {"I_bg_sd_inh", &I_BG_SD[0]},
+        {"I_bg_min_inh", &I_BG_MIN[0]},
+        {"I_bg_max_inh", &I_BG_MAX[0]},
 
         {"I_bg_1", &I_BG_1},
         {"I_bg_2", &I_BG_2},
         {"Fraction_of_neurons_with_I_bg_1",&FRACTION_OF_NEURONS_WITH_I_BG_1},
+        {"I_bg_multiplier", &I_BG_MULTIPLIER},
 
         {"P_sp_mean", &P_SP_MEAN},
         {"P_sp_sd", &P_SP_SD},
@@ -655,6 +673,11 @@ int main(int argc, char *argv[]){
         {"z_init", &z_init},
 
         {"max_spikes_per_neuron", &max_spikes},
+        {"limited_spiking_resource_mode", &spiking_resource_mode},
+
+        {"max_pulses_per_synapse", &max_pulses_per_synapse},
+        {"limited_synaptic_transmission_resource_mode", &syn_transmission_resource_mode},
+        {"synaptic_pulse_detection_threshold", &syn_pulse_detection_threshold},
 
         {"use_saved_topology",&TOPOLOGY_LOAD_TYPE},
         {"use_saved_stimulation_data",&STIMULATION_DATA_LOAD_TYPE},
@@ -684,28 +707,20 @@ int main(int argc, char *argv[]){
 
     };
 
-
-
-
     srand(time(0));  //taking value as a seed of a random function
 
-    printf("********************NeuroSimTM-2.1*****************\n");
-    printf("version 16.02.2017\n\n");
+    printf("********************NeuroSimTM-2.2********************\n");
 
     printf("Reading input file...\n");
-
 
     if (input == NULL){
         printf("****IMPORTANT! Failed to open input file! using default parameters***********\n");
     } else readfile (input, value_array);
 
-
     printf("Ready to start simulation with following parameters:\n");
     printf("\n>>>> GENERAL <<<<\n");
     printf("N = %d\n",N);
     printf("INHIBITORY neurons fraction: %g\n",INH_NEURONS_FRACTION);
-
-
 
     printf("\n\n>>>> NETWORK MODEL <<<<\n");
     if (NEURON_MODEL == NEURON_MODEL_PERFECT_INTEGRATE_AND_FIRE){
@@ -727,7 +742,6 @@ int main(int argc, char *argv[]){
     printf("y_init = %g\n", y_init);
     printf("z_init = %g\n", z_init);
 
-
     if ( fabs((x_init + y_init + z_init) - 1) >  0.000001){
         printf("\n\nERROR: x + y + z = %g, though it has to be %g\n", x_init + y_init + z_init, 1.0);
         fflush(stdin);
@@ -744,10 +758,16 @@ int main(int argc, char *argv[]){
         } else {
             printf("Background currents will be generated with following properties\n");
             if (STIMULATION_TYPE == STIM_TYPE_I_BG_GAUSSIAN){
-                printf("I_bg_mean = %g pA\n",I_BG_MEAN);
-                printf("I_bg_sd = %g pA\n",I_BG_SD);
-                printf("I_bg_min = %g pA\n",I_BG_MIN);
-                printf("I_bg_max = %g pA\n",I_BG_MAX);
+                printf("I_bg_mean_exc = %g pA\n",I_BG_MEAN[1]);
+                printf("I_bg_sd_exc = %g pA\n",I_BG_SD[1]);
+                printf("I_bg_min_exc = %g pA\n",I_BG_MIN[1]);
+                printf("I_bg_max_exc = %g pA\n",I_BG_MAX[1]);
+
+                printf("\nI_bg_mean_inh = %g pA\n",I_BG_MEAN[0]);
+                printf("I_bg_sd_inh = %g pA\n",I_BG_SD[0]);
+                printf("I_bg_min_inh = %g pA\n",I_BG_MIN[0]);
+                printf("I_bg_max_inh = %g pA\n",I_BG_MAX[0]);
+
             } else {
                 printf("I_bg_1 = %g pA\n",I_BG_1);
                 printf("I_bg_2 = %g pA\n", I_BG_2);
@@ -772,6 +792,8 @@ int main(int argc, char *argv[]){
             }
         }
     }
+
+    printf("\nI_bg_multiplier = %g",I_BG_MULTIPLIER);
 
     printf("\n\n>>>> TOPOLOGY <<<<\n");
     printf("Layer type: ");
@@ -818,7 +840,12 @@ int main(int argc, char *argv[]){
     if (layer_type == LAYER_TYPE_BINOMIAL)
         printf("P_con = %g\n",P_CON);
     else{
-        if (FORCE_BINOMIAL_TOPOLOGY != 1) printf("lambda = %g\n",lambda);
+        if (FORCE_BINOMIAL_TOPOLOGY != 1) {
+            printf("B_exc = %g\n", B[1]);
+            printf("B_inh = %g\n", B[0]);
+            printf("lambda_exc = %g\n",lambda[1]);
+            printf("lambda_inh = %g\n",lambda[0]);
+        }
         printf("max_conn_length = %g L\n",max_conn_length);
         printf("spike_speed = %g L/ms\n",SPIKE_SPEED);
         printf("tau_delay = %g ms\n",tau_delay);
@@ -924,16 +951,27 @@ int main(int argc, char *argv[]){
 
     if (stim_disable_protocol != 0)
             printf("STIMULATION DISABLING protocol is ON\n");
-    if (max_spikes < 0){
+
+    if (spiking_resource_mode == 0){
         printf("LIMITED SPIKE RESOURCE mode is OFF\n");
     } else {
-        printf("LIMITED SPIKE RESOURCE mode is ON\nmax_spikes_per_neurons = %d",max_spikes);
+        if (spiking_resource_mode == 1)
+            printf("LIMITED SPIKE RESOURCE mode is ON for NPM neurons ONLY\nmax_spikes_per_neurons = %d\n",max_spikes);
+        else
+            printf("LIMITED SPIKE RESOURCE mode is ON for both PM and NPM neurons\nmax_spikes_per_neurons = %d\n",max_spikes);
+    }
+
+    if (syn_transmission_resource_mode == 0){
+        printf("LIMITED SYNAPTIC TRANSMISSION mode is OFF\n");
+    } else {
+        if (syn_transmission_resource_mode == 1)
+            printf("LIMITED SYNAPTIC TRANSMISSION mode is ON for connections from NPM neurons ONLY\npulse_detection_threshold = %g pA\nmax_pulses_per_synapse = %d\n", syn_pulse_detection_threshold, max_pulses_per_synapse);
+        else
+            printf("LIMITED SYNAPTIC TRANSMISSION mode is ON for ALL connections\npulse_detection_threshold = %g pA\nmax_pulses_per_synapse = %d\n", syn_pulse_detection_threshold, max_pulses_per_synapse);
     }
 
     if (inh_off_time != -1)
             printf("\nInhibitory neurons will be forced to V_REST on %g ms\n",inh_off_time);
-
-
 
     printf("\n\n>>>> SIMULATION PARAMETERS <<<<");
     printf("\nBurst detection theshold: %g",burst_threshold);
@@ -952,7 +990,6 @@ int main(int argc, char *argv[]){
         exit(1);                                        //exiting program if user thinks something's gone wrong
     }
     fflush(stdin);
-
 
     //*********************Opening output files********************
 
@@ -985,6 +1022,9 @@ int main(int argc, char *argv[]){
 
     output_amount_of_active_connections = fopen("active_connections.txt","w");
 
+    output_spikes_per_neuron_pm =  fopen("number_of_spikes_pm.txt","w");
+    output_spikes_per_neuron_npm =  fopen("number_of_spikes_npm.txt","w");
+
     system("mkdir syn_resources_dynamics");
     output_x = fopen("syn_resources_dynamics/x.txt","w");
     output_y = fopen("syn_resources_dynamics/y.txt","w");
@@ -995,10 +1035,13 @@ int main(int argc, char *argv[]){
 
     output_M = fopen("M.txt","w");
 
-    if (max_spikes != -1){
+    if (spiking_resource_mode != 0){
         output_lifetimes = fopen("lifetimes.txt","w");
         output_spike_resource = fopen("spiking_resource.txt","w");
     }
+
+    if (syn_transmission_resource_mode != 0)
+        output_syn_lifetimes = fopen("syn_lifetimes.txt","w");
 
     if (STDP_status != STDP_IS_OFF){
         system("mkdir stdp_w_dynamics");
@@ -1043,8 +1086,7 @@ int main(int argc, char *argv[]){
         }
     }
 
-
-    //****************Neuron array initialization***************************************************************************
+    //*****************************Neuron array initialization*****************************//
 
     INH_COUNT = 0;
     EXC_COUNT = 0;
@@ -1062,6 +1104,7 @@ int main(int argc, char *argv[]){
         neurons[i]->id = i;
         neurons[i]->next = NULL;
         neurons[i]->num_of_outcoming_connections = 0;
+        neurons[i]->num_of_incoming_connections = 0;
         neurons[i]->num_spikes = 0;
 
         neurons[i]->last_spiked_at = -100;
@@ -1104,7 +1147,7 @@ int main(int argc, char *argv[]){
 
             switch(STIMULATION_TYPE){
                 case STIM_TYPE_I_BG_GAUSSIAN:
-                    neurons[i]->I_b = gauss (I_BG_MEAN, I_BG_SD,I_BG_MIN,I_BG_MAX);
+                    neurons[i]->I_b = gauss (I_BG_MEAN[neurons[i]->type], I_BG_SD[neurons[i]->type],I_BG_MIN[neurons[i]->type],I_BG_MAX[neurons[i]->type])*I_BG_MULTIPLIER;
                     if (neurons[i]->I_b > V_TH/R_IN) N_PM++;
                     if (neurons[i]->type == TYPE_EXCITATORY)
                         fprintf(exc_I_distribution,"%d %g\n",i,neurons[i]->I_b);
@@ -1114,8 +1157,8 @@ int main(int argc, char *argv[]){
 
                 case STIM_TYPE_I_BG_TWO_VALUES:
                     if (i < FRACTION_OF_NEURONS_WITH_I_BG_1*(double)N)
-                         neurons[i]->I_b = I_BG_1;
-                    else neurons[i]->I_b = I_BG_2;
+                         neurons[i]->I_b = I_BG_1*I_BG_MULTIPLIER;
+                    else neurons[i]->I_b = I_BG_2*I_BG_MULTIPLIER;
                     if (neurons[i]->I_b > V_TH/R_IN) N_PM++;
                     if (neurons[i]->type == TYPE_EXCITATORY)
                         fprintf(exc_I_distribution,"%d %g\n",i,neurons[i]->I_b);
@@ -1125,20 +1168,25 @@ int main(int argc, char *argv[]){
 
                 case STIM_TYPE_P_SP_GAUSSIAN:
                     neurons[i]->I_b = 0;
-                    neurons[i]->p_sp = gauss (P_SP_MEAN, P_SP_SD, P_SP_MIN, P_SP_MAX);
-                    fprintf(p_sp_distribution,"%d %g\n",i,neurons[i]->p_sp);
+                    neurons[i]->p_sp = gauss (P_SP_MEAN, P_SP_SD, P_SP_MIN, P_SP_MAX)*I_BG_MULTIPLIER;
+                    if (neurons[i]->type == TYPE_EXCITATORY)
+                        fprintf(p_sp_distribution,"%d %g\n",i,neurons[i]->p_sp);
+                    else
+                        fprintf(p_sp_distribution,"%d %g\n",-i,neurons[i]->p_sp);
                     break;
 
                 case STIM_TYPE_P_SP_TWO_VALUES:
                     neurons[i]->I_b = 0;
                     if (i < FRACTION_OF_NEURONS_WITH_P_SP_1*(double)N)
-                        neurons[i]->p_sp = P_SP_1;
-                    else neurons[i]->p_sp = P_SP_2;
-                    fprintf(p_sp_distribution,"%d %g\n",i,neurons[i]->p_sp);
+                        neurons[i]->p_sp = P_SP_1*I_BG_MULTIPLIER;
+                    else neurons[i]->p_sp = P_SP_2*I_BG_MULTIPLIER;
+                    if (neurons[i]->type == TYPE_EXCITATORY)
+                        fprintf(p_sp_distribution,"%d %g\n",i,neurons[i]->p_sp);
+                    else
+                        fprintf(p_sp_distribution,"%d %g\n",-i,neurons[i]->p_sp);
                     break;
             }
         }
-
 
         //preparing shortcuts of connection lists for generating connections
         neurons[i]->out_conn = malloc(sizeof(struct synapse));
@@ -1148,8 +1196,6 @@ int main(int argc, char *argv[]){
         neurons[i]->in_conn = malloc(sizeof(struct inc_synapse));
         neurons[i]->in_conn->syn_pointer = NULL;
         neurons[i]->in_conn->next = NULL;
-
-
     }
 
     // setting coordinates according to the layer type
@@ -1178,8 +1224,7 @@ int main(int argc, char *argv[]){
         input_connections = fopen("saved_connections.txt","r");
     }
 
-
-    //****After creating neurons we make one more pass to set background current or p_sp distributions from files**************
+    //*****After creating neurons we make one more pass to set background current or p_sp distributions from files*****
 
     if (STIMULATION_DATA_LOAD_TYPE == READ_STIMULATION_DATA_FROM_FILE){
         if (STIMULATION_TYPE == STIM_TYPE_I_BG_GAUSSIAN  || STIMULATION_TYPE == STIM_TYPE_I_BG_TWO_VALUES){
@@ -1211,9 +1256,9 @@ int main(int argc, char *argv[]){
                 }
 
                 neurons[i]->type = TYPE_EXCITATORY;
-                neurons[i]->I_b = tmp_I;
+                neurons[i]->I_b = tmp_I*I_BG_MULTIPLIER;
                 if (tmp_I > V_TH/R_IN) N_PM++;
-                fprintf(exc_I_distribution,"%d %g\n",i,tmp_I);
+                fprintf(exc_I_distribution,"%d %g\n",i,tmp_I*I_BG_MULTIPLIER);
             }
 
             if (INH_NEURONS_FRACTION > 0 && input_inh_I_distribution != NULL){
@@ -1232,9 +1277,9 @@ int main(int argc, char *argv[]){
                     }
 
                     neurons[i]->type = TYPE_INHIBITORY;
-                    neurons[i]->I_b = tmp_I;
+                    neurons[i]->I_b = tmp_I*I_BG_MULTIPLIER;
                     if (tmp_I > V_TH/R_IN) N_PM++;
-                    fprintf(inh_I_distribution,"%d %g\n",-i,tmp_I);
+                    fprintf(inh_I_distribution,"%d %g\n",-i,tmp_I*I_BG_MULTIPLIER);
                 }
             } else if (INH_NEURONS_FRACTION > 0){
                 printf("ERROR: Failed to open inh_I_distribution.txt though there are inhibitory neurons!\n");
@@ -1268,11 +1313,11 @@ int main(int argc, char *argv[]){
                 }
                 N_COUNT++;
                 neurons[i]->I_b = 0;
-                neurons[i]->p_sp = tmp_I;
+                neurons[i]->p_sp = tmp_I*I_BG_MULTIPLIER;
                 if (neurons[i]->type == TYPE_EXCITATORY)
-                    fprintf(p_sp_distribution,"%d %g\n",i,tmp_I);
+                    fprintf(p_sp_distribution,"%d %g\n",i,tmp_I*I_BG_MULTIPLIER);
                 else
-                    fprintf(p_sp_distribution,"%d %g\n",-i,tmp_I);
+                    fprintf(p_sp_distribution,"%d %g\n",-i,tmp_I*I_BG_MULTIPLIER);
             }
 
             if (N_COUNT != N) {
@@ -1283,7 +1328,6 @@ int main(int argc, char *argv[]){
 
         }
     }
-
 
     //closing files we don't need anymore
     fclose(output_coordinates);
@@ -1305,10 +1349,24 @@ int main(int argc, char *argv[]){
     } else
         fclose(p_sp_distribution);
 
+    //******PIF readjustment******
 
-    //***************Establishsing connections******************************************************************************
+    if (NEURON_MODEL == NEURON_MODEL_PERFECT_INTEGRATE_AND_FIRE){
+        output_V_rest_PIF = fopen("I_bg_V_rest_PIF.txt","w");
+        for (i = 0; i<N; i++){
+            if (neurons[i]->I_b < (V_TH - V_REST)/R_IN){
+                neurons[i]->V_rest = neurons[i]->V_rest + neurons[i]->I_b*R_IN;
+                neurons[i]->I_b = 0;
+            }
+            fprintf(output_V_rest_PIF,"%d %g %g\n", i, neurons[i]->I_b, neurons[i]->V_rest);
+        }
+        fclose(output_V_rest_PIF);
+    }
+
+
+    //******************Establishing connections******************//
+
     printf("Establishing neuron connections...\n");
-
 
     N_COUNT = 0;
 
@@ -1317,12 +1375,10 @@ int main(int argc, char *argv[]){
         fscanf(input_connections,"%d %d %lf",&pre_num,&post_num,&tmp_prob);
 
     for (i=0;i<N;i++){
-        tmp_synapse = neurons[i]->out_conn;  //a pointer that runs through the list of outcoming connections
+        tmp_synapse = neurons[i]->out_conn;  //a pointer that runs through the list of outgoing connections
 
         pre_syn_type = neurons[i]->type;
         CONN_PER_NEURON_COUNT = 0;
-
-
 
         //looking over every other neuron in the network and checking whether we create a connection
         //(if we read topology from file we still check if given probability value tmp_prob satisfies our connection occurrence condidtion)
@@ -1347,7 +1403,6 @@ int main(int argc, char *argv[]){
                             printf("ERROR: Input data on exc\\inh type for neuron %d mismatch!\n",j);
                             getchar();
                             exit(1);
-
                         }
 
                         neurons[j]->type = TYPE_EXCITATORY;
@@ -1358,14 +1413,15 @@ int main(int argc, char *argv[]){
                     prob = (double)(rand())/RAND_MAX;
 
                 //****Checking probability whether we should create a connection (synapse)
-                if ((layer_type != LAYER_TYPE_BINOMIAL && FORCE_BINOMIAL_TOPOLOGY != 1 && prob < my_theta(max_conn_length - sqrt(pow(neurons[i]->x - neurons[j]->x,2) + pow(neurons[i]->y - neurons[j]->y,2)))*exp(-sqrt(pow(neurons[i]->x - neurons[j]->x,2) + pow(neurons[i]->y - neurons[j]->y,2))/lambda)) ||
+                if ((layer_type != LAYER_TYPE_BINOMIAL && FORCE_BINOMIAL_TOPOLOGY != 1 && prob < B[pre_syn_type]*my_theta(max_conn_length - sqrt(pow(neurons[i]->x - neurons[j]->x,2) + pow(neurons[i]->y - neurons[j]->y,2)))*exp(-sqrt(pow(neurons[i]->x - neurons[j]->x,2) + pow(neurons[i]->y - neurons[j]->y,2))/lambda[pre_syn_type])) ||
                         (layer_type == LAYER_TYPE_BINOMIAL && prob <= P_CON) || (FORCE_BINOMIAL_TOPOLOGY == 1 && prob <= P_CON)){
 
                     //counting for statistics
                     N_con++;
-                    CONN_PER_NEURON_COUNT++;                    
+                    CONN_PER_NEURON_COUNT++;
 
                     neurons[i]->num_of_outcoming_connections++;
+                    neurons[j]->num_of_incoming_connections++;
                     post_syn_type = neurons[j]->type;
 
                     //setting all initial values
@@ -1404,6 +1460,7 @@ int main(int argc, char *argv[]){
                         tmp_synapse->tau_rec = tmp_tau_rec;
                         tmp_synapse->tau_facil = tmp_tau_facil;
 
+
                     } else {
 
                         if (Avg_A[pre_syn_type][post_syn_type] > 0)
@@ -1418,17 +1475,21 @@ int main(int argc, char *argv[]){
 
                         if (Avg_tau_facil[pre_syn_type][post_syn_type] == 0) tmp_synapse->tau_facil = 0;
                         else tmp_synapse->tau_facil = gauss(Avg_tau_facil[pre_syn_type][post_syn_type], 0.5*Avg_tau_facil[pre_syn_type][post_syn_type], dt, 4*Avg_tau_facil[pre_syn_type][post_syn_type]);
+
                     }
 
                     fprintf(synaptic_parameters_distribution,"%d %d %g %g %g %g %g\n",i,j,tmp_synapse->A,tmp_synapse->U,tmp_synapse->tau_I,tmp_synapse->tau_rec,tmp_synapse->tau_facil);
                     fflush(synaptic_parameters_distribution);
 
-
-
                     tmp_synapse->x = x_init;
                     tmp_synapse->y = y_init;
                     tmp_synapse->z = z_init;
                     tmp_synapse->u = tmp_synapse->U;
+
+                    tmp_synapse->syn_pulse_count = 0;
+                    tmp_synapse->syn_pulse_detection_threshold = syn_pulse_detection_threshold;
+                    tmp_synapse->syn_pulse_flag = 0;
+                    tmp_synapse->syn_transmission_resource = max_pulses_per_synapse;
 
                     //adding this synapse in a list if incoming connections in a list of the postsynaptic neuron
                     tmp_input_synapse = neurons[j]->in_conn;
@@ -1472,7 +1533,7 @@ int main(int argc, char *argv[]){
 
         }
 
-        //writing the amount of outcoming connections per neuron down to the file
+        //writing the amount of outgoing connections per neuron down to the file
        fprintf(output_connections_distribution,"%d %d\n",i,CONN_PER_NEURON_COUNT);
        if ((i+1) % 100 == 0)
         printf("\rConnections done for %d neurons...",i+1);
@@ -1493,7 +1554,7 @@ int main(int argc, char *argv[]){
 
     printf("\nNetwork is created successfully.\nReady to start simulation.\n");
 
-    //****************************************Simulation**********************************************************************************************
+    //****************************************Simulation****************************************//
 
     printf("Simulating...\n");
     output_info = fopen("info.txt","w");
@@ -1507,7 +1568,11 @@ int main(int argc, char *argv[]){
     avg_y = 0;
     avg_z = 0;
     avg_u = 0;
-    spike_resource = (N - N_PM)*max_spikes;
+
+    if (spiking_resource_mode == 1)
+        spike_resource = (N - N_PM)*max_spikes;
+    else
+        spike_resource = N*max_spikes;
 
     last_burst_time=0;
     burst_flag = 0;
@@ -1539,6 +1604,22 @@ int main(int argc, char *argv[]){
             tmp_input_synapse = neurons[i]->in_conn;
             while (tmp_input_synapse->syn_pointer != NULL){
                 stepSynapse(tmp_input_synapse->syn_pointer, dt);
+
+                if (tmp_input_synapse->syn_pointer->I >= tmp_input_synapse->syn_pointer->syn_pulse_detection_threshold && tmp_input_synapse->syn_pointer->syn_pulse_flag == 0)
+                    tmp_input_synapse->syn_pointer->syn_pulse_flag = 1;
+
+                if (tmp_input_synapse->syn_pointer->I < tmp_input_synapse->syn_pointer->syn_pulse_detection_threshold && tmp_input_synapse->syn_pointer->syn_pulse_flag == 1){
+                    tmp_input_synapse->syn_pointer->syn_pulse_count++;
+                    tmp_input_synapse->syn_pointer->syn_pulse_flag = 0;
+                }
+
+                if (tmp_input_synapse->syn_pointer->w != 0 && tmp_input_synapse->syn_pointer->syn_pulse_count >= tmp_input_synapse->syn_pointer->syn_transmission_resource && ((syn_transmission_resource_mode == 1 && neurons[tmp_input_synapse->syn_pointer->pre_id]->I_b_init < V_TH/R_IN) || (syn_transmission_resource_mode == 2))){
+                    tmp_input_synapse->syn_pointer->w = 0;
+                    fprintf(output_syn_lifetimes, "%g %g %d %g %g %d %g %g\n", simulation_time, tmp_input_synapse->syn_pointer->A,
+                            tmp_input_synapse->syn_pointer->pre_id, neurons[tmp_input_synapse->syn_pointer->pre_id]->x, neurons[tmp_input_synapse->syn_pointer->pre_id]->y,
+                            tmp_input_synapse->syn_pointer->post_id, neurons[tmp_input_synapse->syn_pointer->post_id]->x, neurons[tmp_input_synapse->syn_pointer->post_id]->y);
+                    fflush(output_syn_lifetimes);
+                }
 
                 if (tmp_input_synapse->syn_pointer->timers != NULL){
 
@@ -1579,10 +1660,7 @@ int main(int argc, char *argv[]){
             }
         }
 
-
-
-        //PASS 2: step for membrane potentials V, detecting and proccessing spikes
-
+    //PASS 2: step for membrane potentials V, detecting and processing spikes
 
         for (i=0;i<N;i++){
             //decreasing refractory state timers
@@ -1604,7 +1682,7 @@ int main(int argc, char *argv[]){
             if (simulation_time > inh_off_time && inh_off_time != -1 && neurons[i]->type==TYPE_INHIBITORY)
                 neurons[i]->V = V_REST;
 
-            if (max_spikes != -1 && neurons[i]->I_b_init < V_TH/R_IN) {
+            if ((spiking_resource_mode == 1 && neurons[i]->I_b_init < V_TH/R_IN) || (spiking_resource_mode == 2)) {
                 if (max_spikes - neurons[i]->num_spikes <= 0){
                     neurons[i]->V = neurons[i]->V_rest;
                 }
@@ -1622,38 +1700,35 @@ int main(int argc, char *argv[]){
                 }
             }
 
-
             if (neurons[i]->V >= V_TH) { //In case of exceeding threshold value neuron emits a spike
 
                 N_SP++; //we count this spike to get the activity later
                 N_ACTIVE_CONN += neurons[i]->num_of_outcoming_connections;
 
                 neurons[i]->num_spikes++;
-                spike_resource--;
 
-                if (max_spikes != -1 && neurons[i]->I_b_init < V_TH/R_IN)
+
+                if ((spiking_resource_mode == 1 && neurons[i]->I_b_init < V_TH/R_IN) || (spiking_resource_mode == 2)){
+                    spike_resource--;
                     if (max_spikes - neurons[i]->num_spikes <= 0){
-                        neurons[i]->I_b_init = 0;
-                        fprintf(output_lifetimes,"%d %g %g %g\n",i,simulation_time,neurons[i]->x, neurons[i]->y);
+                        fprintf(output_lifetimes,"%d %g %g %g %g %d %d\n",i,simulation_time,neurons[i]->x, neurons[i]->y, neurons[i]->I_b_init, neurons[i]->num_of_incoming_connections, neurons[i]->num_of_outcoming_connections);
                         fflush(output_lifetimes);
                     }
-
-                // we give a message to user
-
+                }
 
                 //we write the spike down to the raster file
                 if (neurons[i]->I_b >= V_TH/R_IN){
                     printf("Neuron %d \t1__PM emitted spike at %.1lf ms \t|| Bursts registered: %d\n",i,simulation_time,burst_counter);
                     fprintf(output_raster,"%g %d pm\n", simulation_time, i);
                 } else {
-                    printf("Neuron %d \t0_reg emitted spike at %.1lf ms \t|| Bursts registered: %d\n",i,simulation_time,burst_counter);
+                    printf("Neuron %d \t0_NPM emitted spike at %.1lf ms \t|| Bursts registered: %d\n",i,simulation_time,burst_counter);
                     fprintf(output_raster,"%g %d\n", simulation_time, i);
                 }
                 fflush(output_raster);
 
                 neurons[i]->last_spiked_at = simulation_time;
 
-                //We send a spike to all outcoming synapses by adding a new item in a queue of timers of incoming spikes
+                //We send a spike to all outgoing synapses by adding a new item in a queue of timers of incoming spikes
                 tmp_synapse = neurons[i]->out_conn;
                 while (tmp_synapse->post_id != -1){
 
@@ -1680,13 +1755,14 @@ int main(int argc, char *argv[]){
                 else neurons[i]->ref_time_left = TAU_REF_INH;
 
                 //setting resetting potential
-                neurons[i]->V = neurons[i]->V_reset;
+                if (NEURON_MODEL == NEURON_MODEL_LEAKY_INTEGRATE_AND_FIRE)
+                    neurons[i]->V = neurons[i]->V_reset;
+                else
+                    neurons[i]->V = neurons[i]->V_rest;
 
                 if (HOMEOSTASIS_status == HOMEOSTASIS_IS_ON)
                     M -= M*b; //Homeostasis mechanism
-
             }
-
         }
 
     //****Homeostasis step
@@ -1706,8 +1782,13 @@ int main(int argc, char *argv[]){
             fprintf(output_file_spiking_activity,"%g %g\n", simulation_time, activity);
             fflush(output_file_spiking_activity);
 
-            if (max_spikes != -1){
+            if (spiking_resource_mode == 1){
                 fprintf(output_spike_resource,"%g %g\n",simulation_time,spike_resource/(double)((N-N_PM)*max_spikes));
+                fflush(output_spike_resource);
+            }
+
+            if (spiking_resource_mode == 2){
+                fprintf(output_spike_resource,"%g %g\n",simulation_time,spike_resource/(double)((N)*max_spikes));
                 fflush(output_spike_resource);
             }
 
@@ -1717,7 +1798,7 @@ int main(int argc, char *argv[]){
             avg_activity += activity;
                 if (activity > burst_threshold && burst_flag == 0 && burst_detection_timer <= 0){
                     burst_flag = 1;
-                    burst_detection_timer = 100;                    
+                    burst_detection_timer = 100;
                     fprintf(output_burst_times,"%g\n",simulation_time);
                     fflush(output_burst_times);
 
@@ -1783,7 +1864,6 @@ int main(int argc, char *argv[]){
                     avg_u += tmp_synapse->u;
                     tmp_synapse = tmp_synapse->next;
                 }
-
             }
 
             fprintf(output_x,"%g %g\n", simulation_time, avg_x/((double)N_con));
@@ -1861,15 +1941,19 @@ int main(int argc, char *argv[]){
                 W_OUTPUT_COUNTER++;
             }
         }
-
-
-
-
     }
 
-    //*******************After Simulation********************
-    //Writing simulation parameters to the info.txt file
+    //*******************After Simulation********************//
+    for (i=0; i<N; i++)
+        if (neurons[i]->I_b_init < V_TH/R_IN)
+            fprintf(output_spikes_per_neuron_npm, "%d %d %g %g %g %d %d\n",i,neurons[i]->num_spikes,neurons[i]->x, neurons[i]->y, neurons[i]->I_b_init, neurons[i]->num_of_incoming_connections, neurons[i]->num_of_outcoming_connections);
+        else
+            fprintf(output_spikes_per_neuron_pm, "%d %d %g %g %g %d %d\n",i,neurons[i]->num_spikes,neurons[i]->x, neurons[i]->y, neurons[i]->I_b_init, neurons[i]->num_of_incoming_connections, neurons[i]->num_of_outcoming_connections);
 
+    fclose(output_spikes_per_neuron_npm);
+    fclose(output_spikes_per_neuron_pm);
+
+    //Writing simulation parameters to the info.txt file
 
     fprintf(output_info,"\n>>>> GENERAL <<<<\n");
     fprintf(output_info,"N = %d\n",N);
@@ -1899,10 +1983,10 @@ int main(int argc, char *argv[]){
         } else {
             fprintf(output_info,"Background currents will be generated with following properties\n");
             if (STIMULATION_TYPE == STIM_TYPE_I_BG_GAUSSIAN){
-                fprintf(output_info,"I_bg_mean = %g pA\n",I_BG_MEAN);
-                fprintf(output_info,"I_bg_sd = %g pA\n",I_BG_SD);
-                fprintf(output_info,"I_bg_min = %g pA\n",I_BG_MIN);
-                fprintf(output_info,"I_bg_max = %g pA\n",I_BG_MAX);
+                fprintf(output_info,"I_bg_mean = %g pA\n",I_BG_MEAN[0]);
+                fprintf(output_info,"I_bg_sd = %g pA\n",I_BG_SD[0]);
+                fprintf(output_info,"I_bg_min = %g pA\n",I_BG_MIN[0]);
+                fprintf(output_info,"I_bg_max = %g pA\n",I_BG_MAX[0]);
             } else {
                 fprintf(output_info,"I_bg_1 = %g pA\n",I_BG_1);
                 fprintf(output_info,"I_bg_2 = %g pA\n", I_BG_2);
@@ -2065,7 +2149,8 @@ int main(int argc, char *argv[]){
         fprintf(output_info,"Number of bursts in simulation: %d\n",burst_counter);
         fclose(output_info);
 
-//*************Releasing memory************************************************************************
+    //*************Releasing memory*************//
+
     printf("Releasing memory...\n");
 
     for (i=0;i<N;i++){
@@ -2096,7 +2181,7 @@ int main(int argc, char *argv[]){
     fflush(stdin);
     getchar();
 
-    //***************** Closing rest of the files *************************************************************************
+    //***************** Closing rest of the files *****************//
     fclose(output_raster);
 
     fclose(output_burst_times);
@@ -2111,9 +2196,13 @@ int main(int argc, char *argv[]){
     fclose(output_z);
     fclose(output_u);
 
-    if (max_spikes != -1){
+    if (spiking_resource_mode != 0){
         fclose(output_lifetimes);
         fclose(output_spike_resource);
+    }
+
+    if (syn_transmission_resource_mode != 0){
+        fclose(output_syn_lifetimes);
     }
 
     fclose(output_M);
@@ -2121,7 +2210,8 @@ int main(int argc, char *argv[]){
     return 0;
 }
 
-//****Input file-reading function
+    //*****Input file-reading function*****//
+
 void readfile (FILE *file, struct parameter value_array[PARAMETER_N]){
 
     int i;
@@ -2141,7 +2231,10 @@ void readfile (FILE *file, struct parameter value_array[PARAMETER_N]){
         for (i=0; i<PARAMETER_N; i++){
             if (strcmp(str, value_array[i].name) == 0){
 
-                if (strcmp(str,"N") == 0 || strcmp(str,"SIM_TIME") == 0 || strcmp(str,"pb_number") == 0 || strcmp(str,"neuron_model") == 0 || strcmp(str,"stim_disable_protocol") == 0 || strcmp(str,"Homeostasis_status") == 0  || strcmp(str,"I_bg_noise_mode") == 0 || strcmp(str,"STDP_status") == 0 || strcmp(str,"force_binomial_topology") == 0 || strcmp(str,"use_saved_coordinates") == 0 || strcmp(str,"spatial_layer_type") == 0 || strcmp(str,"max_spikes_per_neuron") == 0 || strcmp(str,"Stimulation_type") == 0 || strcmp(str,"use_saved_topology") == 0 || strcmp(str,"use_saved_stimulation_data") == 0 || strcmp(str,"use_saved_synaptic_parameters") == 0) //these parameters are integer, so they need special care
+                if (strcmp(str,"N") == 0 || strcmp(str,"SIM_TIME") == 0 || strcmp(str,"pb_number") == 0 || strcmp(str,"neuron_model") == 0 || strcmp(str,"limited_synaptic_transmission_resource_mode") == 0 || strcmp(str,"max_pulses_per_synapse") == 0 ||
+                        strcmp(str,"stim_disable_protocol") == 0 || strcmp(str,"Homeostasis_status") == 0  || strcmp(str,"I_bg_noise_mode") == 0 || strcmp(str,"limited_spiking_resource_mode") == 0 || strcmp(str,"STDP_status") == 0 ||
+                        strcmp(str,"force_binomial_topology") == 0 || strcmp(str,"use_saved_coordinates") == 0 || strcmp(str,"spatial_layer_type") == 0 || strcmp(str,"max_spikes_per_neuron") == 0 || strcmp(str,"Stimulation_type") == 0 ||
+                        strcmp(str,"use_saved_topology") == 0 || strcmp(str,"use_saved_stimulation_data") == 0 || strcmp(str,"use_saved_synaptic_parameters") == 0) //these parameters are integer, so they need special care
                     *(int *)value_array[i].value = atoi(value);
 
                 else *(double *)value_array[i].value = atof(value);
@@ -2151,4 +2244,3 @@ void readfile (FILE *file, struct parameter value_array[PARAMETER_N]){
         }
     }
 }
-
